@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+DESTDIR ?= $(abspath debian/elks-libc-gcc-ia16-elf)
+
+%:
+	exec dh $@
+
+override_dh_auto_clean:
+	# `./' is needed or dash(1) may not search for current directory.
+	-. ./env.sh && make clean
+
+override_dh_auto_configure:
+	ls -la  # for debugging
+	mkdir -p cross include
+	. ./env.sh && make defconfig
+
+override_dh_auto_build:
+	. ./env.sh && cd libc && make all
+	# Also build (and later install) elf2elks...
+	. ./env.sh && cd elks/tools/elf2elks && make ../bin/elf2elks
+
+override_dh_auto_test:
+	# Unimplemented.
+
+override_dh_strip:
+	# Stock GNU Binutils's strip(1) will fail on new (May 2020)
+	# medium-model elks-libc libraries, as it does not understand the
+	# IA16-specific segment relocations.
+	dh_strip -X.o -X.a
+
+override_dh_auto_install:
+	. ./env.sh && cd libc && make DESTDIR='$(DESTDIR)/usr' install
+	mkdir -p $(DESTDIR)/usr/bin
+	install -m 755 elks/tools/bin/elf2elks $(DESTDIR)/usr/bin/elf2elks
